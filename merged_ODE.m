@@ -160,6 +160,15 @@ V = app.V;   % Illuminated volume (L)
 A = app.A;   % Illuminated Area (m^2)
 E0 = app.E0;  % incident light intensity in mol photons/cm2/s
 
+% --- Switching UV light On after t_switch ---
+% Check if the current time t is before or after the switch time
+if t < app.t_switch
+    E0 = 0; % Dark phase: no UV light
+else
+    E0 = app.E0; % Light phase: use the defined UV intensity
+end
+% --- ---
+
 % Absorbance coefficients (M⁻¹cm⁻¹):
 a_HOCl    = 62 * HOCl;
 a_OCl     = 66 * OCl_minus;

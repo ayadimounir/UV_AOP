@@ -5,7 +5,9 @@ clc;
 
 %% Define unit, temperature, lamp intensity, etc.
 app.t_unit = 'min';               % Choose time unit: 'sec' or 'min'
-tspan = 0:0.01:5;                 % Time range in chosen unit
+tspan = 0:0.01:25;                 % Time range in chosen unit
+app.t_switch = 20;                 % UV light turns on at t = 2 minutes
+
 app.T_Celcius = 20;               % Temperature in °C (will be converted to Kelvin)
 
 % Time conversion factors:
@@ -13,16 +15,16 @@ t_f.sec = 1;
 t_f.min = 60;
 
 %% User-defined oxidants (mg/L)
-app.Cl2_mgL   = 5;    % ClO- (mg Cl2/L)
+app.Cl2_mgL   = 14;    % ClO- (mg Cl2/L)
 app.NH2Cl_mgL = 0;   % NH2Cl (mg Cl2/L)
 app.NHCl2_mgL = 0;    % NHCl2 (mg Cl2/L)
 app.H2O2_mgL  = 0;    % H2O2 (mg/L)
 app.NCl3_mgL  = 0;    % NCl3 (mg Cl2/L)
 
 %% Water matrix initial parameters
-app.NH3_mgL    = 0;       % NH3 (mg N/L)
-app.pH         = 5.5;      % pH
-app.sc         = 3e3;     % Background scavenging (s^-1) (not used here)
+app.NH3_mgL    = 1.16;       % NH3 (mg N/L)
+app.pH         = 7.13;      % pH
+app.sc         = 3e5;     % Background scavenging (s^-1) (not used here)
 
 %% UV Source
 % % We either use energy based (E0_mWm2) or photon based (E0)
@@ -38,10 +40,10 @@ app.A = 0.002642;   % Illuminated Area (m^2)
 
 %% water matrix parameters
 
-app.alkalinity = 0;      % Alkalinity (mg/L as CaCO3)
-app.DOC        = 0;       % DOC (mg C/L)
+app.alkalinity = 40;      % Alkalinity (mg/L as CaCO3)
+app.DOC        = 10;       % DOC (mg C/L)
 app.chloride   = 0;      % Cl- (mg/L)
-app.phosphate  = 2;       % Inorganic Phosphate (mMol/L)
+app.phosphate  = 0;       % Inorganic Phosphate (mMol/L)
 
 app.dioxane    = 1e-6;    % Initial 1,4-Dioxane (mol/L)
 app.caffeine    = 1e-6;    % Initial caffeine (mol/L)
@@ -49,7 +51,7 @@ app.sucralose    = 1e-6;    % Initial caffeine (mol/L)
 
 
 %background absorbance (excluding oxidants)
-app.transmittance = 1; % Example transmittance value (99%)
+app.transmittance = 0.717; % Example transmittance value (99%)
 
 % Calculate Absorbance (A) from Transmittance (T)
 app.a_background = -log10(app.transmittance);

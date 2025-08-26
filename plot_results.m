@@ -7,12 +7,12 @@ tiledlayout(3,3, 'TileSpacing', 'compact', 'Padding', 'compact');
 
   % Read the entire Excel file into a table. Make sure the file is in the current folder
 % or provide a full path.
-expData = readtable('UVCl2 photolysis.xlsx', 'Sheet', 'Rayox 9,6mgL Cl2 pH 5', 'VariableNamingRule','preserve');
+expData = readtable('UVCl2 photolysis in sheets.xlsx', 'Sheet', 'Rayox 14mgL Cl2 wastewater', 'VariableNamingRule','preserve');
 
 
 % Directly use the exact column name for time
 % Replace 'Time' below with the actual exact name if different
-t_exp = expData.('time(minute)');
+t_exp = expData.('total time(minute)');
 
 % Directly use the exact column names for chlorine data
 freeCl_exp = expData.('Cl2free (mgCl2/L)');
