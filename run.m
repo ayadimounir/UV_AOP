@@ -15,16 +15,16 @@ t_f.sec = 1;
 t_f.min = 60;
 
 %% User-defined oxidants (mg/L)
-app.Cl2_mgL   = 14;    % ClO- (mg Cl2/L)
+app.Cl2_mgL   = 0;    % ClO- (mg Cl2/L)
 app.NH2Cl_mgL = 0;   % NH2Cl (mg Cl2/L)
-app.NHCl2_mgL = 0;    % NHCl2 (mg Cl2/L)
+app.NHCl2_mgL = 4;    % NHCl2 (mg Cl2/L)
 app.H2O2_mgL  = 0;    % H2O2 (mg/L)
 app.NCl3_mgL  = 0;    % NCl3 (mg Cl2/L)
 
 %% Water matrix initial parameters
-app.NH3_mgL    = 1.16;       % NH3 (mg N/L)
-app.pH         = 7.13;      % pH
-app.sc         = 3e5;     % Background scavenging (s^-1) (not used here)
+app.NH3_mgL    = 0;       % NH3 (mg N/L)
+app.pH         = 7;      % pH
+app.sc         = 5e5;     % Background scavenging (s^-1) 
 
 %% UV Source
 % % We either use energy based (E0_mWm2) or photon based (E0)
@@ -40,14 +40,15 @@ app.A = 0.002642;   % Illuminated Area (m^2)
 
 %% water matrix parameters
 
-app.alkalinity = 40;      % Alkalinity (mg/L as CaCO3)
-app.DOC        = 10;       % DOC (mg C/L)
-app.chloride   = 0;      % Cl- (mg/L)
+app.alkalinity = 45;      % Alkalinity (mg/L as CaCO3)
+app.DOC        = 0;       % DOC (mg C/L)
+app.chloride   = 40;      % Cl- (mg/L)
 app.phosphate  = 0;       % Inorganic Phosphate (mMol/L)
 
 app.dioxane    = 1e-6;    % Initial 1,4-Dioxane (mol/L)
 app.caffeine    = 1e-6;    % Initial caffeine (mol/L)
-app.sucralose    = 1e-6;    % Initial caffeine (mol/L)
+app.sucralose    = 1e-6;    % Initial sucralose (mol/L)
+app.carbamazepine    = 1e-6;    % Initial carbamazepine (mol/L)
 
 
 %background absorbance (excluding oxidants)
@@ -91,7 +92,7 @@ HPO4   = Phosphate_moles * (Ka1*Ka2)/(H^2) / D;
 PO4    = Phosphate_moles * (Ka1*Ka2*Ka3)/(H^3) / D;
 %% Initial state vector build-up
 
-y0 = zeros(63,1);
+y0 = zeros(64,1);
 
 % Chloramine species
 y0(1)  = app.NH2Cl_mgL / 71000;        % NH2Cl (monochloramine)
@@ -137,13 +138,13 @@ y0(50) = HPO4;   % HPO4^2-
 
 % Pharmaceuticals and emerging contaminants
 y0(61) = app.caffeine;  % caffeine
-y0(62) = app.sucralose;  % caffeine
+y0(62) = app.sucralose;  % sucralose
 y0(63) = 0;
-
+y0(64) = app.carbamazepine; % Carbamazepine
 
 
 %% Set ODE options: update NonNegative indices to include species 1:60
-options = odeset('RelTol',1e-8, 'AbsTol',1e-15, 'NonNegative', 1:63, 'MaxStep', 1e-2);
+options = odeset('RelTol',1e-8, 'AbsTol',1e-15, 'NonNegative', 1:64, 'MaxStep', 1e-2);
 
 %% Solve the ODE system:
 [t, y] = ode15s(@(t,y) merged_ODE(t, y, t_f, app), tspan, y0, options);
@@ -196,4 +197,4 @@ time_for_0_5log_elimination = struct('dioxane', time_diox, ...
     plot_results(t, y, app);
 
 %% extract OH exposure
-OHexposure = y(:,63); % Extract OH exposure values at each time step
+OHexposure = y(:,64); % Extract OH exposure values at each time step

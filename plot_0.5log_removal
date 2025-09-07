@@ -1,0 +1,175 @@
+%% --- Setup & load ---
+clear; clc;
+
+% File
+fname = 'data/Rayox_complete_dataset.xlsx';
+
+% Read full table
+T = readtable(fname);
+
+% Short handles to columns (use exact headers from your workbook)
+uv_time      = T.('UV time(minute)');
+total_time   = T.('total time(minute)');
+dose_raw     = T.('Cl2 injected (mgCl2/L)');
+Type         = string(T.('Type'));
+pHi          = T.('pHi');
+NH4C0        = T.('NH4 C0');
+exp_rep      = string(T.('experiment replicate'));
+samp_rep     = string(T.('sample replicate'));
+src_sheet    = string(T.('SourceSheet'));
+
+% Enforce numeric dose even if Excel mixed types/commas
+dose = str2double(string(dose_raw));  % will convert "12,6" -> NaN; fix commas if needed:
+if any(isnan(dose) & ~ismissing(dose_raw))
+    % Try replacing comma decimal separators
+    dose_alt = str2double(strrep(string(dose_raw), ',', '.'));
+    dose(~isnan(dose_alt)) = dose_alt(~isnan(dose_alt));
+end
+
+%% --- Pivot to long: stack micropollutants into (Compound, Conc) ---
+compoundNames = {'Dioxane','Sucralose','Carbamazepine','Caffeine'};
+compoundCols  = { 'dioxane (microgram/L)', 'sucralose (microgram/L)', ...
+                  'Carbamazepine (microgram/L)', 'caffeine (microgram/L)' };
+
+rows = numel(uv_time);
+Long = table();
+
+for k = 1:numel(compoundNames)
+    conc_k = T.(compoundCols{k});
+    Lk = table();
+    Lk.Compound   = repmat(string(compoundNames{k}), rows, 1);
+    Lk.Conc       = conc_k;
+    Lk.uv_time    = uv_time;
+    Lk.total_time = total_time;
+    Lk.dose       = dose;
+    Lk.Type       = Type;
+    Lk.pHi        = pHi;
+    Lk.NH4C0      = NH4C0;
+    Lk.exp_rep    = exp_rep;
+    Lk.samp_rep   = samp_rep;
+    Lk.src_sheet  = src_sheet;
+    Long = [Long; Lk]; %#ok<AGROW>
+end
+
+%% --- Filter to analysis subset (mirror your R filters) ---
+isMQ   = (Long.Type == "MQ");
+validC = ~isnan(Long.Conc) & (Long.Conc > 0);
+validT = ~isnan(Long.uv_time);
+validp = isfinite(Long.pHi);
+validN = Long.NH4C0 > 0;
+Long   = Long(isMQ & validC & validT & validp & validN, :);
+
+% Define series_id = Compound × dose × exp_rep × samp_rep × src_sheet
+Long.series_id = strcat(Long.Compound, "|d=", string(Long.dose), ...
+                        "|e=", Long.exp_rep, "|s=", Long.samp_rep, ...
+                        "|src=", Long.src_sheet);
+
+%% --- Define C0 at (uv_time = 0, total_time = 20) per series_id ---
+near = @(a,b,tol) abs(a-b) <= tol;
+atC0 = near(Long.uv_time, 0, 1e-9) & near(Long.total_time, 20, 1e-9);
+C0tab = groupsummary(Long(atC0,:), "series_id", "first", "Conc");
+C0tab.Properties.VariableNames(end) = {'C0'};
+
+% Join C0 back
+Long = outerjoin(Long, C0tab(:,{'series_id','C0'}), ...
+                 "Keys","series_id","MergeKeys",true,"Type","left");
+
+% Keep rows we can normalize & only during/after the 20-min mark (like R)
+Long = Long(Long.total_time >= 20 & ~isnan(Long.C0), :);
+
+% Compute log10(C/C0)
+Long.CC0      = Long.Conc ./ Long.C0;
+Long.log10CC0 = log10(Long.CC0);
+Long = Long(isfinite(Long.log10CC0), :);
+
+%% --- Fit per (Compound × dose × pH): log10(C/C0) ~ slope10 * t, intercept = 0 ---
+[G, compG, doseG, pHG] = findgroups(Long.Compound, Long.dose, Long.pHi);
+
+slope10 = splitapply( @(t,y) (t\y), Long.uv_time, Long.log10CC0, G );  % least-squares through origin
+npts    = splitapply( @numel, Long.uv_time, G );
+
+% Optional R^2 (unweighted), relative to "through-origin" model
+Rsq = splitapply( @(t,y) r2_through_origin(t,y), Long.uv_time, Long.log10CC0, G );
+function r = r2_through_origin(t,y)
+    b = (t\y);
+    yhat = t.*b;
+    SSres = sum((y - yhat).^2);
+    SStot = sum((y - mean(y)).^2);
+    r = 1 - SSres/SStot;
+end
+
+% Assemble fits
+Fits = table(compG, doseG, pHG, slope10, npts, Rsq, ...
+    'VariableNames', {'Compound','dose','pHi','slope10','n_pts','R2'});
+
+% Compute T0.5log (minutes); only meaningful if slope < 0
+Fits.T05log_min = nan(height(Fits),1);
+neg = Fits.slope10 < 0;
+Fits.T05log_min(neg) = -0.5 ./ Fits.slope10(neg);
+
+% Keep finite, positive times
+good = isfinite(Fits.T05log_min) & Fits.T05log_min > 0;
+Fits = Fits(good, :);
+
+%% --- 3D bar plot helper: build Z matrix for a given compound (rows: pH, cols: dose) ---
+function [Z, pHvals, doseVals] = zMatrixFor(Fits, comp)
+    F = Fits(Fits.Compound == comp, :);
+    doseVals = unique(F.dose);   doseVals = sort(doseVals);
+    pHvals   = unique(F.pHi);    pHvals   = sort(pHvals);
+    Z = nan(numel(pHvals), numel(doseVals));
+    for i = 1:height(F)
+        xi = find(doseVals == F.dose(i), 1, 'first');
+        yi = find(pHvals   == F.pHi(i),  1, 'first');
+        Z(yi, xi) = F.T05log_min(i);
+    end
+end
+
+%% --- Colormap: smooth green→orange→red (continuous, no clamp) ---
+function cmap = greenOrangeRed(n)
+    if nargin<1, n = 256; end
+    g = [0, 0.5, 1.0];  % positions 0–0.5–1
+    rC = [0.0, 1.0, 1.0];
+    gC = [0.5, 0.65, 0.0];
+    bC = [0.0, 0.0, 0.0];
+    xi = linspace(0,1,numel(rC));
+    xq = linspace(0,1,n);
+    cmap = [interp1(xi, rC, xq)', interp1(xi, gC, xq)', interp1(xi, bC, xq)'];
+    cmap = max(0,min(1,cmap));
+end
+
+%% --- 3D bar plot (discrete X = dose, Y = pH; continuous Z = T0.5log) ---
+function bar3_T05log(Fits, comp)
+    [Z, pHvals, doseVals] = zMatrixFor(Fits, comp);
+    figure('Color','w'); ax = axes; hold(ax,'on');
+
+    % bar3 expects matrix with rows = Y categories, columns = X categories
+    h = bar3(Z);  % returns one surface per column (dose)
+    % Color each bar by its height
+    for k = 1:numel(h)
+        zdata = get(h(k),'ZData');
+        set(h(k),'CData', zdata, 'FaceColor','interp');  % color by height
+        set(h(k),'EdgeColor',[0.2 0.2 0.2]);
+    end
+
+    colormap(ax, greenOrangeRed(256));
+    colorbar; ylabel(colorbar,'T_{0.5log} (min)');
+
+    % Ticks & labels: columns = dose, rows = pH
+    set(ax,'XTick',1:numel(doseVals), 'XTickLabel', string(doseVals));
+    set(ax,'YTick',1:numel(pHvals),   'YTickLabel', string(pHvals));
+    xlabel('Cl_2 injected (mg/L)'); ylabel('pH'); zlabel('T_{0.5log} (min)');
+
+    % View & aesthetics
+    view(35, 22);
+    grid on; box on;
+    title(sprintf('0.5-log removal time — %s', comp), 'FontWeight','bold');
+
+    % Make missing combos (NaN) invisible (set face alpha where Z is NaN)
+    % (bar3 ignores NaNs, leaving gaps; nothing to do here)
+end
+
+%% --- Commands to visualize each micropollutant ---
+bar3_T05log(Fits, "Dioxane");
+bar3_T05log(Fits, "Sucralose");
+bar3_T05log(Fits, "Carbamazepine");
+bar3_T05log(Fits, "Caffeine");

@@ -88,6 +88,7 @@ O3_rad_minus = y(59); % O3•⁻
 NOM = y(60); %NOM
 caffeine = y(61) ; %caffeine
 sucralose = y(62);
+carbamazepine = y(64); %(carbamazepine)
 
 
 %% Initialize derivative variables (all set to zero)
@@ -153,6 +154,7 @@ dO3_rad_minus_dt = 0; %O3 radical
 dNOM_dt = 0; %NOM
 dcaffeine_dt = 0; %caffeine
 dsucralose_dt = 0;
+dcarbamazepine_dt= 0;
 %% Global parameters and photolysis definitions
 T = app.T;    % Temperature (K)
 L = app.L;        % Fixed optical path length (cm)
@@ -1766,6 +1768,24 @@ dOH_rad_dt = dOH_rad_dt - r_background_scavenging;
 % OH exposure
 dOHexposure_dt = OH_rad;  % Integrating OH_rad over time
 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Reaction (report, Reaction carbamazepine_OH): carbamazepine + •OH → products
+rcarbamazepine_OH = 8.8e9 * carbamazepine * OH_rad;
+dcarbamazepine_dt = dcarbamazepine_dt - rcarbamazepine_OH;
+dOH_rad_dt = dOH_rad_dt - rcarbamazepine_OH;
+
+% Reaction (report, Reaction carbamazepine_Cl): carbamazepine + Cl• → products
+rcarbamazepine_Cl = 3.30e10 * carbamazepine * Cl_rad;
+dcarbamazepine_dt = dcarbamazepine_dt - rcarbamazepine_Cl;
+dCl_rad_dt = dCl_rad_dt - rcarbamazepine_Cl;
+
+% Reaction (report, Reaction carbamazepine_Cl2): carbamazepine + Cl2•⁻ → products
+rcarbamazepine_Cl2 = 0.43e8 * carbamazepine * Cl2_rad_minus;
+dcarbamazepine_dt = dcarbamazepine_dt - rcarbamazepine_Cl2;
+dCl2_rad_minus_dt = dCl2_rad_minus_dt - rcarbamazepine_Cl2;
+
 %% (End of report's model tables)
 %% =======================================================
 
@@ -1836,7 +1856,8 @@ dydt = [ dNH2Cl_dt;        % 1
          dcaffeine_dt; %caffeine
          dsucralose_dt;
          dOHexposure_dt; %OH exposure
-         ];   % 63
+         dcarbamazepine_dt; 
+         ];   % 64
          % Clamp the pH
 dydt(37) = 0;  % Fix [H⁺] to its initial value so pH remains constant
 dydt(38) = 0;  % Fix [OH-] to its initial value so pH remains constant
