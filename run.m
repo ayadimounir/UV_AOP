@@ -1,12 +1,12 @@
 % run.m
-close all;
+% close all;
 clear;
 clc;
 
 %% Define unit, temperature, lamp intensity, etc.
 app.t_unit = 'min';               % Choose time unit: 'sec' or 'min'
 tspan = 0:0.01:25;                 % Time range in chosen unit
-app.t_switch = 20;                 % UV light turns on at t = 2 minutes
+app.t_switch = 20;                 % UV light turns on at t = 20 minutes
 
 app.T_Celcius = 20;               % Temperature in °C (will be converted to Kelvin)
 
@@ -15,34 +15,44 @@ t_f.sec = 1;
 t_f.min = 60;
 
 %% User-defined oxidants (mg/L)
-app.Cl2_mgL   = 0;    % ClO- (mg Cl2/L)
+app.Cl2_mgL   = 25;    % Cl2 (mg Cl2/L)
 app.NH2Cl_mgL = 0;   % NH2Cl (mg Cl2/L)
-app.NHCl2_mgL = 4;    % NHCl2 (mg Cl2/L)
+app.NHCl2_mgL = 0;    % NHCl2 (mg Cl2/L)
 app.H2O2_mgL  = 0;    % H2O2 (mg/L)
 app.NCl3_mgL  = 0;    % NCl3 (mg Cl2/L)
 
 %% Water matrix initial parameters
-app.NH3_mgL    = 0;       % NH3 (mg N/L)
-app.pH         = 7;      % pH
-app.sc         = 5e5;     % Background scavenging (s^-1) 
+app.NH3_mgL    = 1;       % NH3 (mg N/L)
+app.pH         = 7.2;      % pH
+app.sc         = 3e3;     % Background scavenging (s^-1) 
 
 %% UV Source
-% % We either use energy based (E0_mWm2) or photon based (E0)
 
-app.E0_mWcm2 = 10; % Energy in mW/cm2 (mJ/cm2.s)
-app.E0_Wm2 = app.E0_mWcm2 * 1; % Energy in W/m2 (J/m2.s)
-app.E0 = app.E0_Wm2 * (254e-9 / (6.626e-34 * 3e8 * 6.022e23)); % variable E0 in 'moles of photons/m²·s' | 254nm in m | planck constant in J.s | C in m/S | Avogadro in mol-1
+% Irradiance given as mW/cm^2
+app.E0_mWcm2 = 14;                           % mW·cm^-2
+
+% Convert to W/cm^2
+E0_Wcm2 = app.E0_mWcm2 * 1e-3;              % W·cm^-2 = J·s^-1·cm^-2
+
+% Convert energy flux -> photon (Einstein) flux in mol photons/cm^2/s
+E0_mol_cm2_s = E0_Wcm2 * (254e-9 / (6.626e-34 * 3e8 * 6.022e23));  % mol·cm^-2·s^-1
+
+% Bake in cm^3 -> L so (E0 / L_cm) is mol·L^-1·s^-1
+app.E0 = E0_mol_cm2_s * 1000;               % mol·L^-1·cm·s^-1
+
+% Keep optical path in centimeters to match the ε (M^-1·cm^-1) 
+app.L = 3.5;                                % cm
 
 
-app.L = 3.5;        % Fixed optical path length (cm)
+
 app.V = 0.0528;   % Illuminated volume (L)
 app.A = 0.002642;   % Illuminated Area (m^2)
 
 %% water matrix parameters
 
-app.alkalinity = 45;      % Alkalinity (mg/L as CaCO3)
+app.alkalinity = 0;      % Alkalinity (mg/L as CaCO3)
 app.DOC        = 0;       % DOC (mg C/L)
-app.chloride   = 40;      % Cl- (mg/L)
+app.chloride   = 0;      % Cl- (mg/L)
 app.phosphate  = 0;       % Inorganic Phosphate (mMol/L)
 
 app.dioxane    = 1e-6;    % Initial 1,4-Dioxane (mol/L)
@@ -52,7 +62,7 @@ app.carbamazepine    = 1e-6;    % Initial carbamazepine (mol/L)
 
 
 %background absorbance (excluding oxidants)
-app.transmittance = 0.717; % Example transmittance value (99%)
+app.transmittance = 1; % Example transmittance value (99%)
 
 % Calculate Absorbance (A) from Transmittance (T)
 app.a_background = -log10(app.transmittance);

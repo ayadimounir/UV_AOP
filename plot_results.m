@@ -23,10 +23,11 @@ expData = readtable('Rayox_complete_dataset.xlsx', ...
 
 % --- Apply filters ---
 expData = expData( ...
-    expData.('pHi') == 7 & ...
     expData.('NH4 C0') > 0 & ...
+    expData.('pHi') == 7 & ...
     strcmp(expData.('Type'), 'Wastewater') & ...
-    expData.('Cl2 injected (mgCl2/L)') == 4, :);
+    expData.('Cl2 injected (mgCl2/L)') == 25, :);
+
 
 % --- Extract columns after filtering ---
 t_exp         = expData.('total time(minute)');
@@ -42,7 +43,7 @@ pH_exp        = expData.('pH');
 % --- Extract condition info for subplot titles ---
 pHi_val  = expData.('pHi')(1);
 Cl2_val  = expData.('Cl2 injected (mgCl2/L)')(1);
-title_suffix = sprintf('(wastewater, pH = %.1f, Cl_2 = %.1f mg/L)', pHi_val, Cl2_val);
+title_suffix = sprintf('(MQ, pH = %.1f, Cl_2 = %.1f mg/L)', pHi_val, Cl2_val);
 
 
 % Identify unique pH values and assign a color to each

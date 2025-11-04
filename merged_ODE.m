@@ -80,14 +80,15 @@ H2PO4_minus   = y(51);  % H2PO4⁻
 HPO4_rad      = y(52);  % phosphate radical HPO4•⁻
 HClOH_rad     = y(53); 
 O2_super      = y(54); 
-O3_var =y(55);          %MOLECULAR ozone
-O3_rad = y(56);          %O3 radical
-H_atom = y(57); %H atom
-ClO2 = y(58); %ClO2
-O3_rad_minus = y(59); % O3•⁻
-NOM = y(60); %NOM
-caffeine = y(61) ; %caffeine
-sucralose = y(62);
+O3_var        = y(55);          %MOLECULAR ozone
+O3_rad        = y(56);          %O3 radical
+H_atom        = y(57); %H atom
+ClO2          = y(58); %ClO2
+O3_rad_minus  = y(59); % O3•⁻
+NOM           = y(60); %NOM
+caffeine      = y(61) ; %caffeine
+sucralose     = y(62);
+OHexposure     = y(63);   % cumulative \int[OH] dt
 carbamazepine = y(64); %(carbamazepine)
 
 
@@ -146,21 +147,23 @@ dH2PO4_minus_dt   = 0;  % For species 51
 dHPO4_rad_dt      = 0;  % For species 52
 dHClOH_rad_dt = 0;
 dO2_super_dt     = 0;
-dO3_var_dt =0;
-dO3_rad_dt = 0;
-dH_atom_dt = 0; %H atom
-dClO2_dt = 0; %ClO2
-dO3_rad_minus_dt = 0; %O3 radical
-dNOM_dt = 0; %NOM
-dcaffeine_dt = 0; %caffeine
-dsucralose_dt = 0;
-dcarbamazepine_dt= 0;
+dO3_var_dt = 0;          % 55  O3 (molecular)
+dO3_rad_dt=0;          % 56  O3 radical   <-- was wrongly dO3_rad_minus_dt
+dH_atom_dt=0;          % 57  H atom
+dClO2_dt=0;            % 58  ClO2
+dO3_rad_minus_dt=0;    % 59  O3•–
+dNOM_dt=0;             % 60  NOM
+dcaffeine_dt=0;        % 61  caffeine
+dsucralose_dt=0;       % 62  sucralose
+dOHexposure_dt=0;      % 63  OH exposure  <-- now matches state y(63)
+dcarbamazepine_dt=0;   % 64  carbamazepine
 %% Global parameters and photolysis definitions
 T = app.T;    % Temperature (K)
 L = app.L;        % Fixed optical path length (cm)
 V = app.V;   % Illuminated volume (L)
 A = app.A;   % Illuminated Area (m^2)
-E0 = app.E0;  % incident light intensity in mol photons/cm2/s
+E0 = app.E0;  % incident photon flux in mol·L^-1·cm·s^-1 (pre-baked). (E0/L_cm) -> mol·L^-1·s^-1
+
 
 % --- Switching UV light On after t_switch ---
 % Check if the current time t is before or after the switch time
@@ -177,15 +180,15 @@ a_OCl     = 66 * OCl_minus;
 a_NH2Cl   = 371 * NH2Cl;
 a_NHCl2   = 142 * NHCl2;
 a_H2O2    = 18 * H2O2;
-a_HO2_rad = 228 * HO2_rad;
+a_HO2_minus = 228 * HO2_minus;
 a_background = app.a_background;
 a_sucralose      = 14.7 * sucralose;
 
-a_total = a_HOCl + a_OCl + a_NH2Cl + a_NHCl2 + a_H2O2 + a_HO2_rad + a_background; %only for photolysis rate calculation, isn't function of time
+a_total = a_HOCl + a_OCl + a_NH2Cl + a_NHCl2 + a_H2O2 + a_HO2_minus + a_sucralose + a_background/L ; %only for photolysis rate calculation, isn't function of time | a_background is divided by L to match units
 
 % Quantum yields:
-phi_HOCl     = 0.62;
-phi_OCl_O_Cl = 0.55;
+phi_HOCl     = 1;
+phi_OCl_O_Cl = 0.69;
 phi_OCl_O3P  = 0.074;
 phi_OCl_O1D  = 0.133;
 phi_NH2Cl    = 0.35;
@@ -480,11 +483,6 @@ dCl2_rad_minus_dt = dCl2_rad_minus_dt - r46_extra;
 dCl_rad_dt = dCl_rad_dt + r46_extra;
 dCl_minus_dt = dCl_minus_dt + r46_extra;
 
-% Reaction 47 (Table A-5, Reaction 47): Cl2•⁻ + H2O → Cl⁻ + HClOH•
-r47_extra = 1.30e3 * Cl2_rad_minus * 55.5;
-dCl2_rad_minus_dt = dCl2_rad_minus_dt - r47_extra;
-dCl_minus_dt = dCl_minus_dt + r47_extra;
-dHClOH_rad_dt = dHClOH_rad_dt + r47_extra;
 
 % Reaction 48 (Table A-5, Reaction 48): HClOH• → ClOH•⁻ + H⁺
 r48_extra = 1.00e8 * HClOH_rad;
@@ -497,7 +495,7 @@ r49_extra = 1.00e4 * ClOH_rad_minus * Cl_minus;
 dClOH_rad_minus_dt = dClOH_rad_minus_dt - r49_extra;
 dCl_minus_dt = dCl_minus_dt - r49_extra;
 dCl2_rad_minus_dt = dCl2_rad_minus_dt + r49_extra;
-dOH_minus_dt = dOH_minus_dt + 2*r49_extra;
+dOH_minus_dt = dOH_minus_dt + r49_extra;
 
 % Reaction 50 (Table A-5, Reaction 50): ClOH•⁻ + H⁺ → Cl• + H2O
 r50_extra = 2.10e10 * ClOH_rad_minus * H_plus;
@@ -641,15 +639,15 @@ dcaffeine_dt = dcaffeine_dt - rcaffeine_Cl2;
 dCl2_rad_minus_dt = dCl2_rad_minus_dt - rcaffeine_Cl2;
 
 % Reaction (report, Reaction caffeine_ClO): caffeine + ClO•⁻ → products
-rcaffeine_Cl2 = 1.03e8 * caffeine * ClO_rad;
-dcaffeine_dt = dcaffeine_dt - rcaffeine_Cl2;
-dClO_rad_dt = dClO_rad_dt  - rcaffeine_Cl2;
+rcaffeine_ClO = 1.03e8 * caffeine * ClO_rad;
+dcaffeine_dt = dcaffeine_dt - rcaffeine_ClO;
+dClO_rad_dt = dClO_rad_dt  - rcaffeine_ClO;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Reaction (report, Reaction sucralose_OH): sucralose + •OH → products
 rsucralose_OH = 1.6e9 * sucralose * OH_rad;
 dsucralose_dt = dsucralose_dt - rsucralose_OH;
-dOH_rad_dt = dOH_rad_dt - rcaffeine_OH;
+dOH_rad_dt = dOH_rad_dt - rsucralose_OH;
 
 % Reaction (report, Reaction sucralose_Cl): sucralose+ Cl• → products
 rsucralose_Cl = 1.11e10 * sucralose * Cl_rad;
@@ -810,7 +808,7 @@ dH2O2_dt = dH2O2_dt - r_C5;
 dOH_rad_dt = dOH_rad_dt + 2*r_C5;
 
 % Reaction 6 (C-1): HO2⁻ + H₂O + hv → 2·OH + OH⁻
-r_C6 = (E0/L) * (1 - 10^(-a_total*L)) * (a_HO2_rad/a_total) * phi_HO2_rad;
+r_C6 = (E0/L) * (1 - 10^(-a_total*L)) * (a_HO2_minus/a_total) * phi_HO2_rad;
 dHO2_minus_dt = dHO2_minus_dt - r_C6;
 dOH_rad_dt = dOH_rad_dt + 2*r_C6;
 dOH_minus_dt = dOH_minus_dt + r_C6;
@@ -979,32 +977,19 @@ dDOC_dt     = dDOC_dt     - r52;
 % (No reaction provided)
 
 % --- Reaction 55 ---
-% 2ClO· + H₂O → HOCl + H⁺ + ClO₂⁻      k = 2.5×10^9 M⁻¹·s⁻¹
-% (Assuming water is in excess so that its concentration is absorbed into the rate constant)
-r55 = 2.5e9 * (ClO_rad)^2;
-dClO_rad_dt    = dClO_rad_dt    - 2*r55;
-dHOCl_dt       = dHOCl_dt       + r55;
-dH_plus_dt     = dH_plus_dt     + r55;
-dClO2_minus_dt = dClO2_minus_dt + r55;
+% (No reaction provided)
 
 % --- Reaction 56 ---
 % (No reaction provided)
 
 % --- Reaction 57 ---
-% CO₃·⁻ + ·OH → products      k = 3.0×10^9 M⁻¹·s⁻¹
-r57 = 3.0e9 * CO3_rad * OH_rad;
-dCO3_rad_dt = dCO3_rad_dt - r57;
-dOH_rad_dt  = dOH_rad_dt  - r57;
-% (Products not tracked)
+% (No reaction provided)
 
 % --- Reaction 58 ---
 % (No reaction provided)
 
 % --- Reaction 59 ---
-% CO₃·⁻ + CO₃·⁻ → products      k = 3.0×10^7 M⁻¹·s⁻¹
-r59 = 3.0e7 * (CO3_rad)^2;
-dCO3_rad_dt = dCO3_rad_dt - 2*r59;
-% (Products not tracked)
+% (No reaction provided)
 
 % --- Reaction 60 ---
 % (No reaction provided)
@@ -1062,15 +1047,15 @@ dOH_minus_dt    = dOH_minus_dt    + r68;
 r69 = 3.6e9 * O_rad_minus * O2;
 dO_rad_minus_dt = dO_rad_minus_dt - r69;
 dO2_dt          = dO2_dt          - r69;
-dO3_rad_dt      = dO3_rad_dt      + r69;
+dO3_rad_minus_dt      = dO3_rad_minus_dt     + r69;
 
 % --- Reaction 70 ---
 % O·⁻ + H₂O → OH· + OH⁻      k = 1.8×10^5 M⁻¹·s⁻¹
 % (If water is assumed constant [~55.5 M], include that factor)
-r70 = 1.8e5 * O_rad_minus * 55.5;
-dO_rad_minus_dt = dO_rad_minus_dt - r70;
-dOH_rad_dt      = dOH_rad_dt      + r70;
-dOH_minus_dt    = dOH_minus_dt    + r70;
+% r70 = 1.8e5 * O_rad_minus * 55.5;
+% dO_rad_minus_dt = dO_rad_minus_dt - r70;
+% dOH_rad_dt      = dOH_rad_dt      + r70;
+% dOH_minus_dt    = dOH_minus_dt    + r70;
 
 % --- Reaction 71 ---
 % O·⁻ + H₂O₂ → O₂·⁻ + H₂O      k = 4.0×10^8 M⁻¹·s⁻¹
@@ -1104,7 +1089,7 @@ dO2_dt       = dO2_dt       + r75;
 % --- Reaction 76 ---
 % O₃·⁻ → O·⁻ + O₂      k = 2.6×10^3 s⁻¹
 r76 = 2.6e3 * O3_rad;
-dO3_rad_dt     = dO3_rad_dt     - r76;
+dO3_rad_minus_dt     = dO3_rad_minus_dt     - r76;
 dO_rad_minus_dt = dO_rad_minus_dt + r76;
 dO2_dt         = dO2_dt         + r76;
 
@@ -1190,7 +1175,8 @@ dO2_dt = dO2_dt + r_C33_54;
 % -------------------------------
 % Reaction 99: ClO· + NOM → Product 
 r_C36_99 = 5.52e8 * ClO_rad * NOM;
-dClO_rad_dt = dClO2_rad_dt - r_C36_99;
+dClO_rad_dt = dClO_rad_dt - r_C36_99;
+dNOM_dt     = dNOM_dt     - r_C36_99; 
 
 
 % Reaction 100: ClO· + ClO· → Cl2O2, k = 2.50e9 M⁻¹ s⁻¹
@@ -1218,11 +1204,7 @@ dClO2_minus_dt   = dClO2_minus_dt   + r_C36_103;
 dH_plus_dt       = dH_plus_dt       + r_C36_103;
 
 % Reaction 104: 2ClO· + H2O → HOCl + H⁺ + ClO2⁻, k = 2.50e9 M⁻¹ s⁻¹
-r_C36_104 = 2.50e9 * (ClO_rad)^2;
-dClO_rad_dt      = dClO_rad_dt      - 2*r_C36_104;
-dHOCl_dt         = dHOCl_dt         + r_C36_104;
-dH_plus_dt       = dH_plus_dt       + r_C36_104;
-dClO2_minus_dt   = dClO2_minus_dt   + r_C36_104;
+% duplicate
 
 % Reaction 105: 2ClO· + OH⁻ → OCl⁻ + H⁺ + ClO2⁻, k = 2.50e9 M⁻¹ s⁻¹
 r_C36_105 = 2.50e9 * (ClO_rad)^2;
@@ -1239,7 +1221,7 @@ dHOCl_dt       = dHOCl_dt       + r_C36_106;
 dH_plus_dt     = dH_plus_dt     + r_C36_106;
 
 % Reaction 107: O(³P) + OCl⁻ → ClO2⁻, k = 9.40e9 M⁻¹ s⁻¹
-r_C36_107 = 9.40e9 * O3P;  % (OCl⁻ is assumed implicitly in the rate)
+r_C36_107 = 9.40e9 * O3P * OCl_minus;  % (OCl⁻ is assumed implicitly in the rate)
 dO3P_dt       = dO3P_dt       - r_C36_107;
 dClO2_minus_dt = dClO2_minus_dt + r_C36_107;
 
@@ -1419,7 +1401,7 @@ dCl_rad_dt = dCl_rad_dt + r_C37_133;
 r_C37_135 = 15.1 * ClOH_rad_minus;
 dClOH_rad_minus_dt = dClOH_rad_minus_dt - r_C37_135;
 dCl_rad_dt = dCl_rad_dt + r_C37_135;
-dOH_rad_dt = dOH_rad_dt + r_C37_135;
+dOH_minus_dt = dOH_minus_dt + r_C37_135;
 
 %% =======================================================
 %% TABLE C3-8: HO2· and O2·⁻ Reactions
@@ -1557,7 +1539,7 @@ dO2_dt = dO2_dt + r_C311_170;
 r_C311_171 = 4.00e6 * O3_var * ClO2_minus;
 dO3_var_dt = dO3_var_dt - r_C311_171;
 dClO2_minus_dt = dClO2_minus_dt - r_C311_171;
-dO3_rad_dt = dO3_rad_dt + r_C311_171;
+dO3_rad_minus_dt = dO3_rad_minus_dt + r_C311_171;
 dClO2_rad_dt = dClO2_rad_dt + r_C311_171;
 % Reaction 172: O₃ + ClO2· → O₂ + ClO3⁻, k = 1.23e3 M⁻¹ s⁻¹
 r_C311_172 = 1.23e3 * O3_var * ClO2_rad;
@@ -1609,49 +1591,49 @@ dOH_rad_dt = dOH_rad_dt + r_C311_179;
 r_C311_180 = 1.60e9 * O3_var * HO2_rad;
 dO3_var_dt = dO3_var_dt - r_C311_180;
 dHO2_rad_dt = dHO2_rad_dt - r_C311_180;
-dO3_rad_dt = dO3_rad_dt + r_C311_180;
+dO3_rad_minus_dt = dO3_rad_minus_dt + r_C311_180;
 dH_plus_dt = dH_plus_dt + r_C311_180;
 dO2_dt = dO2_dt + r_C311_180;
 % Reaction 181: O₃ + HO2⁻ → O₃·⁻ + HO2·, k = 5.50e6 M⁻¹ s⁻¹
 r_C311_181 = 5.50e6 * O3_var * HO2_minus;
 dO3_var_dt = dO3_var_dt - r_C311_181;
 dHO2_minus_dt = dHO2_minus_dt - r_C311_181;
-dO3_rad_dt = dO3_rad_dt + r_C311_181;
+dO3_rad_minus_dt = dO3_rad_minus_dt + r_C311_181;
 dHO2_rad_dt = dHO2_rad_dt + r_C311_181;
 % Reaction 182: O₃·⁻ + ·OH → O₂·⁻ + HO2·, k = 8.50e9 M⁻¹ s⁻¹
-r_C311_182 = 8.50e9 * O3_rad * OH_rad;
-dO3_rad_dt = dO3_rad_dt - r_C311_182;
+r_C311_182 = 8.50e9 * O3_rad_minus * OH_rad;   
+dO3_rad_minus_dt = dO3_rad_minus_dt - r_C311_182;
 dOH_rad_dt = dOH_rad_dt - r_C311_182;
 dO2_super_dt = dO2_super_dt + r_C311_182;
 dHO2_rad_dt = dHO2_rad_dt + r_C311_182;
 % Reaction 183: O₃·⁻ + H⁺ → O₂ + ·OH, k = 5.20e10 M⁻¹ s⁻¹
-r_C311_183 = 5.20e10 * O3_rad * H_plus;
-dO3_rad_dt = dO3_rad_dt - r_C311_183;
+r_C311_183 = 5.20e10 * O3_rad_minus * H_plus;  
+dO3_rad_minus_dt = dO3_rad_minus_dt - r_C311_183;
 dH_plus_dt = dH_plus_dt - r_C311_183;
 dO2_dt = dO2_dt + r_C311_183;
 dOH_rad_dt = dOH_rad_dt + r_C311_183;
 % Reaction 184: O₃·⁻ + ClO· → O₃ + OCl⁻, k = 1.00e9 M⁻¹ s⁻¹
-r_C311_184 = 1.00e9 * O3_rad * ClO_rad;
-dO3_rad_dt = dO3_rad_dt - r_C311_184;
+r_C311_184 = 1.00e9 * O3_rad_minus * ClO_rad;    
+dO3_rad_minus_dt = dO3_rad_minus_dt - r_C311_184;
 dClO_rad_dt = dClO_rad_dt - r_C311_184;
 dO3_var_dt = dO3_var_dt + r_C311_184;
 dOCl_minus_dt = dOCl_minus_dt + r_C311_184;
 % Reaction 185: O₃·⁻ → O₂ + O·⁻, k = 4.28e3 s⁻¹
-r_C311_185 = 4.28e3 * O3_rad;
-dO3_rad_dt = dO3_rad_dt - r_C311_185;
+r_C311_185 = 4.28e3 * O3_rad_minus;  
+dO3_rad_minus_dt = dO3_rad_minus_dt - r_C311_185;
 dO2_dt = dO2_dt + r_C311_185;
-dO2_super_dt = dO2_super_dt + r_C311_185;
+dO_rad_minus_dt = dO_rad_minus_dt + r_C311_185;
 % Reaction 186: O₃·⁻ + O₃·⁻ → Product, k = 9.00e8 M⁻¹ s⁻¹
-r_C311_186 = 9.00e8 * (O3_rad)^2;
-dO3_rad_dt = dO3_rad_dt - r_C311_186;
+r_C311_186 = 9.00e8 * (O3_rad_minus)^2;  
+dO3_rad_minus_dt = dO3_rad_minus_dt - r_C311_186;
 % Reaction 187: O₃·⁻ + O·⁻ → 2O₂·⁻, k = 7.00e8 M⁻¹ s⁻¹
-r_C311_187 = 7.00e8 * O3_rad * O2_super;
-dO3_rad_dt = dO3_rad_dt - r_C311_187;
+r_C311_187 = 7.00e8 * O3_rad_minus * O_rad_minus; 
+dO3_rad_minus_dt = dO3_rad_minus_dt - r_C311_187;
 dO2_super_dt = dO2_super_dt + r_C311_187;
 % Reaction 188: O₂·⁻ + O₃ → O₃·⁻ + O₂, k = 1.60e9 M⁻¹ s⁻¹
 r_C311_188 = 1.60e9 * O2_super * O3_var;
 dO2_super_dt = dO2_super_dt - r_C311_188;
-dO3_rad_dt = dO3_rad_dt + r_C311_188;
+dO3_rad_minus_dt = dO3_rad_minus_dt + r_C311_188;
 dO2_dt = dO2_dt + r_C311_188;
 
 %% =======================================================
@@ -1750,12 +1732,12 @@ dO2_dt = dO2_dt + r_C313_202;
 % Reaction 203: (Not provided; assume 0)
 r_C313_203 = 0;
 
-% % Reaction 204: Cl⁻ + HOCl + H⁺ → Cl₂ + H2O, k = 0.182 M⁻¹ s⁻¹
-% r_C313_204 = 0.182 * H_plus * HOCl * Cl_minus;
-% dH_plus_dt = dH_plus_dt - r_C313_204;
-% dHOCl_dt = dHOCl_dt - r_C313_204;
-% dCl_minus_dt = dCl_minus_dt - r_C313_204;
-% dCl2_dt = dCl2_dt + r_C313_204;
+% Reaction 204: Cl⁻ + HOCl + H⁺ → Cl₂ + H2O, k = 0.182 M⁻¹ s⁻¹
+r_C313_204 = 0.182 * H_plus * HOCl * Cl_minus;
+dH_plus_dt = dH_plus_dt - r_C313_204;
+dHOCl_dt = dHOCl_dt - r_C313_204;
+dCl_minus_dt = dCl_minus_dt - r_C313_204;
+dCl2_dt = dCl2_dt + r_C313_204;
 
 % Reaction 205: (Not provided; assume 0)
 r_C313_205 = 0;
@@ -1848,7 +1830,7 @@ dydt = [ dNH2Cl_dt;        % 1
          dHClOH_rad_dt;
          dO2_super_dt;
          dO3_var_dt;
-         dO3_rad_dt;
+         dO3_rad_minus_dt;
          dH_atom_dt; %H atom
          dClO2_dt; %ClO2
          dO3_rad_minus_dt; %O3 radical
